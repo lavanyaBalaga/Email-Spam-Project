@@ -1,0 +1,336 @@
+import numpy as np #NumPy is used to perform numerical operations on the data, such as calculating statistics and normalizing values.
+
+
+import pandas as pd #It provides a variety of data structures, including DataFrames, that make it easy to work with tabular data. In this code, 
+#Pandas is used to read and load the data from CSV files, clean and pre-process the data, and perform exploratory data analysis.
+
+
+import seaborn as sns #, Seaborn is used to create visualizations of the data, such as histograms, scatter plots, and heatmaps,to gain insights into the distribution and 
+#relationships between variables.
+
+
+import matplotlib.pyplot as plt # In this code, Matplotlib is used to create custom plots and figures that are not directly available in Seaborn.
+
+
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator #WordCloud is a library for generating word clouds. It creates word clouds from text data,
+#where the size and color of each word represent 
+#its frequency or importance. In this code, WordCloud is used to create word clouds of the text data to visualize the most common words and their relative frequency.
+
+
+
+# library for train test split
+from sklearn.model_selection import train_test_split
+
+
+# deep learning libraries for text pre-processing
+import tensorflow as tf #WordCloud is a library for generating word clouds. It creates word clouds from text data, where the size and color of each word represent its frequency
+#or importance. In this code, WordCloud is used to create word clouds of the text data to visualize the most common words and their relative frequency.
+
+
+from tensorflow.keras.preprocessing.text import Tokenizer #Tokenizer: Tokenizer is a class from Keras for converting text data into numerical representations. 
+It breaks down text into individual words or tokens and assigns them unique integer IDs. In this code, Tokenizer is used to convert the text data into a format that 
+can be processed by the deep learning model.
+
+
+from tensorflow.keras.preprocessing.sequence import pad_sequences #pad_sequences is a function from Keras for padding sequences of text data to a consistent length. 
+It adds padding tokens to each sequence so that 
+all sequences have the same length. In this code, pad_sequences is used to ensure that all input sequences have the same length, which is required by the deep learning model.
+
+
+# Modeling 
+from tensorflow.keras.callbacks import EarlyStopping #EarlyStopping is a callback function from Keras that stops the training process of a deep learning model when it stops improving.
+This helps to prevent overfitting and improve the generalization performance of the model. In this code, EarlyStopping is used to monitor the validation loss and stop training when 
+it plateaus, preventing overfitting.
+
+
+from tensorflow.keras.models import Sequential #Sequential is a class from Keras for creating simple linear stack models. It provides a convenient way to define a sequence of layers,
+such as embedding, pooling, and dense layers. In this code, Sequential is used to create the deep learning model, which consists of a sequence of embedding, LSTM, and dense layers.
+
+
+from tensorflow.keras.layers import Embedding, GlobalAveragePooling1D, Dense, Dropout, LSTM, Bidirectional
+[[[[[
+  Embedding: Embedding is a layer from Keras that converts categorical data into dense vectors. It learns a vector representation for each word in the vocabulary, capturing 
+semantic relationships between words. In this code, Embedding is used to convert the tokenized text data into dense vectors, which are then used by the LSTM layers.
+
+13. GlobalAveragePooling1D: GlobalAveragePooling1D is a layer from Keras that performs global average pooling on a sequence of vectors. It averages the vectors across 
+the time dimension, resulting in a single vector representation of the entire sequence. In this code, GlobalAveragePooling1D is used to extract a single vector representation
+from the output of the LSTM layers, which is then used by the dense layer.
+
+14. Dense: Dense is a layer from Keras that performs fully connected mappings. It applies a linear transformation to the input vector, producing a new vector with a different
+dimensionality. In this code, Dense is used as the final layer of the model, transforming the output of the pooling layer into a vector with the number of classes, representing 
+the predicted class probabilities.
+
+15. Dropout: Dropout is a regularization technique that prevents overfitting by randomly dropping a certain percentage of neurons during training. This forces the model 
+to learn more robust representations of the data. In this code, Dropout is used after the LSTM layers to prevent
+]]]]
+
+
+
+path = 'https://raw.githubusercontent.com/sukanyabag/Spam-Classifier-NLP-basic/main/SMSSpamCollection'
+messages = pd.read_csv(path, sep ='\t',names=["label", "message"])
+messages[:3]
+
+
+We will get a short summary details of our data with the .describe() function.
+messages.describe()
+
+Since there are duplicate messages, let’s store them on a separate variable ‘duplicatedRow’ and check if it’s properly filtered out.
+duplicatedRow = messages[messages.duplicated()]
+print(duplicatedRow[:5])
+
+Now, let us get some summary statistics by labels.
+messages.groupby('label').describe().T
+
+First, let’s create a separate dataframe for ham and spam messages and convert it to NumPy array and then to a list to generate WordCloud later.
+
+# Get all the ham and spam messages
+ham_msg = messages[messages.label =='ham']
+spam_msg = messages[messages.label=='spam']
+
+# Create numpy list to visualize using wordcloud
+ham_msg_txt = " ".join(ham_msg.message.to_numpy().tolist())
+spam_msg_txt = " ".join(spam_msg.message.to_numpy().tolist())
+
+
+Since it is a text data, there are many unnecessary stopwords like articles, prepositions etc., which needs to be removed from the data.
+So, let us create our wordcloud now, to extract the most frequent words in ham messages.
+# wordcloud of ham messages
+ham_msg_wcloud = WordCloud(width =520, height =260, stopwords=STOPWORDS,max_font_size=50, background_color ="red", colormap='Blues').generate(ham_msg_txt)
+plt.figure(figsize=(16,10))
+plt.imshow(ham_msg_wcloud, interpolation='bilinear')
+plt.axis('off') # turn off axis
+plt.show()
+
+
+Let us do the same for spam messages and see what it shows!
+# wordcloud of spam messages
+spam_msg_wcloud = WordCloud(width =520, height =260, stopwords=STOPWORDS,max_font_size=50, background_color ="black", colormap='Spectral_r').generate(spam_msg_txt)
+plt.figure(figsize=(16,10))
+plt.imshow(spam_msg_wcloud, interpolation='bilinear')
+plt.axis('off') # turn off axis
+plt.show()
+
+
+Now, since our data is imbalanced, we need to plot a bar graph to estimate the percentage of spam and ham ratio.
+#visualize imbalanced data 
+plt.figure(figsize=(8,6))
+sns.countplot(messages.label)
+# Percentage of spam messages
+(len(spam_msg)/len(ham_msg))*100 [output:15%]
+
+
+So, it clearly shows that the percentage of spam messages is approximately 15.48%. So we can estimate that the percentage of ham and spam is 85% and 15% respectively.
+Next, we have to deal with our imbalanced data issue. There are several techniques to fix imbalanced data. For our use case, we will be using the Downsampling method. 
+In downsampling, we delete some records from the majority class of the data (ham here), so that it matches the minority class count (spam here). Hence, our data will no 
+longer be imbalanced, and it won’t misclassify the messages.
+# one way to fix imbalanced data is to downsample the ham message count to the spam message count
+ham_msg_df = ham_msg.sample(n = len(spam_msg), random_state = 44)
+spam_msg_df = spam_msg
+
+#check the shape now, it must be te same!
+print(ham_msg_df.shape, spam_msg_df.shape)
+
+#check graph for better visualization 
+msg_df = ham_msg_df.append(spam_msg_df).reset_index(drop=True)
+plt.figure(figsize=(8,6))
+sns.countplot(msg_df.label)
+plt.title('Distribution of ham and spam messages (after downsampling)')
+plt.xlabel('Message labels')
+
+let us compute the text length of spam and ham messages, which we will need later.
+# Get length column for each text
+msg_df['text_length'] = msg_df['message'].apply(len)
+
+#Calculate average length by label types
+labels = msg_df.groupby('label').mean()
+labels
+
+Let’s convert our categorical labels to numerical labels, i.e. 0 for ham and 1 for spam.
+Then we will split our data into train and test set. Further, we will transform the labels to numpy arrays, for fitting our models.Train and Test data should have a ratio 
+of 8:2 (80% training data and 20% test data).
+# Map ham label as 0 and spam as 1
+msg_df['msg_type']= msg_df['label'].map({'ham': 0, 'spam': 1})
+msg_label = msg_df['msg_type'].values
+# Split data into train and test
+train_msg, test_msg, train_labels, test_labels = train_test_split(msg_df['message'], msg_label, test_size=0.2, random_state=434)
+
+
+**text-preprocessing, which is one of the most crucial steps to perform before modeling.
+**To preprocess your text is equivalent to making your text suitable for analysis, modeling, and prediction. It is done by Tokenization, Sequencing, and Padding techniques.
+Firstly, we will tune the hyper-parameters used for preprocessing.
+# Defining pre-processing hyperparameters
+max_len = 50 
+trunc_type = "post" 
+padding_type = "post" 
+oov_tok = "<OOV>" 
+vocab_size = 500
+
+We will now use Tokenizer() to tokenize the words into numerical representation.
+We will be using Tokenizer API from TensorFlow Keras. It splits up sentences into words and performs integer encoding.
+tokenizer = Tokenizer(num_words = vocab_size, char_level=False, oov_token = oov_tok)
+tokenizer.fit_on_texts(train_msg)
+
+We can get the word_index by using tokenizer.word_index.
+# Get the word_index 
+word_index = tokenizer.word_index
+word_index
+
+# check how many unique tokens are present
+tot_words = len(word_index)
+print('There are %s unique tokens in training data. ' % tot_words)
+There are 4169 unique tokens in training data. 
+**next preprocessing task- Sequencing and Padding.
+Sequencing will represent each sentence by sequences of numbers using texts_to_sequences() 
+from the tokenizer object. Next, we will use pad_sequences() so that each sequence will have the same length.**
+# Sequencing and padding 
+#train
+training_sequences = tokenizer.texts_to_sequences(train_msg)
+training_padded = pad_sequences (training_sequences, maxlen = max_len, padding = padding_type, truncating = trunc_type )
+
+
+#test
+testing_sequences = tokenizer.texts_to_sequences(test_msg)
+testing_padded = pad_sequences(testing_sequences, maxlen = max_len,padding = padding_type, truncating = trunc_type)
+
+
+Our data is now preprocessed, and we can start training our models now. The Dense Sequential Spam Detection Model–
+vocab_size = 500 
+embeding_dim = 16
+drop_value = 0.2 
+n_dense = 24
+
+design the model architecture now.
+#Dense Sequential model architecture
+model = Sequential()
+model.add(Embedding(vocab_size, embeding_dim, input_length=max_len))
+model.add(GlobalAveragePooling1D())
+model.add(Dense(24, activation='relu'))
+model.add(Dropout(drop_value))
+model.add(Dense(1, activation='sigmoid'))
+model.summary()
+Model: "sequential"
+
+
+Let us compile the model now!
+model.compile(loss='binary_crossentropy',optimizer='adam' ,metrics=['accuracy'])
+‘binary_crossentropy’ – loss function for binary classification. ‘adam’ – optimizer that uses momentum to avoid local minima ‘accuracy’ – a measure of model 
+performance Our model is now complied and ready to be fitted to the training data.
+
+
+Let’s fit the model. num_epochs – Iteration count of the learning algorithm through the entire training data set. early_stop and callbacks – Callbacks allow you to
+specify the performance measure to monitor the trigger, and once triggered, it will stop the training process. verbose – prints loss and accuracy on each epoch.
+# fit dense seq model
+num_epochs = 30
+early_stop = EarlyStopping(monitor='val_loss', patience=3)
+history = model.fit(training_padded, train_labels, epochs=num_epochs, validation_data=(testing_padded, test_labels),callbacks =[early_stop], verbose=2)
+
+
+
+# Model performance on test data 
+model.evaluate(testing_padded, test_labels)
+
+
+We will now visualize the history results by plotting loss and accuracy Vs. number of epochs.
+metrics = pd.DataFrame(history.history)
+
+# Rename column
+metrics.rename(columns = {'loss': 'Training_Loss', 'accuracy': 'Training_Accuracy', 'val_loss': 'Validation_Loss', 'val_accuracy': 'Validation_Accuracy'}, inplace = True)
+def plot_graphs1(var1, var2, string):
+    metrics[[var1, var2]].plot()
+    plt.title('Training and Validation ' + string)
+    plt.xlabel ('Number of epochs')
+    plt.ylabel(string)
+    plt.legend([var1, var2])
+plot_graphs1('Training_Loss', 'Validation_Loss', 'loss')
+
+
+The plot above shows, the accuracy is increasing over increasing epochs. As expected, the model is performing better in the training set than the validation set.
+
+
+The LSTM spam detection model:
+Let’s fit the spam detection model using LSTM. First, let tune our hyperparameters. Then we will code the model architecture. n_lstm – the number of nodes in the
+hidden layers within the LSTM cell drop_lstm – a dropout, that prevents overfitting
+#LSTM hyperparameters
+n_lstm = 20
+drop_lstm =0.2
+#LSTM Spam detection architecture
+model1 = Sequential()
+model1.add(Embedding(vocab_size, embeding_dim, input_length=max_len))
+model1.add(LSTM(n_lstm, dropout=drop_lstm, return_sequences=True))
+model1.add(LSTM(n_lstm, dropout=drop_lstm, return_sequences=True))
+model1.add(Dense(1, activation='sigmoid'))
+model1.compile(loss = 'binary_crossentropy', optimizer = 'adam', metrics=['accuracy'])
+num_epochs = 30
+early_stop = EarlyStopping(monitor='val_loss', patience=2)
+history = model1.fit(training_padded, train_labels, epochs=num_epochs, validation_data=(testing_padded, test_labels),callbacks =[early_stop], verbose=2)
+metrics = pd.DataFrame(history.history)
+# Rename column
+metrics.rename(columns = {'loss': 'Training_Loss', 'accuracy': 'Training_Accuracy',
+                         'val_loss': 'Validation_Loss', 'val_accuracy': 'Validation_Accuracy'}, inplace = True)
+def plot_graphs1(var1, var2, string):
+    metrics[[var1, var2]].plot()
+    plt.title('LSTM Model: Training and Validation ' + string)
+    plt.xlabel ('Number of epochs')
+    plt.ylabel(string)
+    plt.legend([var1, var2])
+plot_graphs1('Training_Loss', 'Validation_Loss', 'loss')
+
+The results are somewhat positive, but somewhere in between the training, loss is increasing, that led to lesser accuracy than Dense Sequential Model. Bi-directional Long Short Term Memory (BiLSTM) Model:
+
+
+# Biderectional LSTM Spam detection architecture
+model2 = Sequential()
+model2.add(Embedding(vocab_size, embeding_dim, input_length=max_len))
+model2.add(Bidirectional(LSTM(n_lstm, dropout=drop_lstm, return_sequences=True)))
+model2.add(Dense(1, activation='sigmoid'))
+model2.compile(loss = 'binary_crossentropy', optimizer = 'adam', metrics=['accuracy'])
+# Training
+num_epochs = 30
+early_stop = EarlyStopping(monitor='val_loss', patience=2)
+history = model2.fit(training_padded, train_labels, epochs=num_epochs, 
+                    validation_data=(testing_padded, test_labels),callbacks =[early_stop], verbose=2)
+metrics = pd.DataFrame(history.history)
+# Rename column
+metrics.rename(columns = {'loss': 'Training_Loss', 'accuracy': 'Training_Accuracy',
+                         'val_loss': 'Validation_Loss', 'val_accuracy': 'Validation_Accuracy'}, inplace = True)
+def plot_graphs1(var1, var2, string):
+    metrics[[var1, var2]].plot()
+    plt.title('BiLSTM Model: Training and Validation ' + string)
+    plt.xlabel ('Number of epochs')
+    plt.ylabel(string)
+    plt.legend([var1, var2])
+# Plot
+plot_graphs1('Training_Loss', 'Validation_Loss', 'loss')
+
+Though the validation loss decreased at the beginning,it again steeped up at the end. It is not so smooth like Dense, but a little better than LSTM.
+
+Dense [epochs:30]
+LSTM [epochs:30]
+Bi-directionalLSTM [epochs:15]
+
+
+This simple code will compare the 3 models, all at once.
+
+# Comparing three different models
+print(f"Dense architecture loss and accuracy: {model.evaluate(testing_padded, test_labels)} " )
+print(f"LSTM architecture loss and accuracy: {model1.evaluate(testing_padded, test_labels)} " )
+print(f"Bi-LSTM architecture loss and accuracy: {model2.evaluate(testing_padded, test_labels)} " )
+
+
+Dense layer Architecture:94%
+LSTM:92%
+Bidirectional is best :95%
+
+
+predict_msg = ["Go until jurong point, crazy.. Available only in bugis n great world la e buffet... Cine there got amore wat...",
+          "Ok lar... Joking wif u oni...",
+          "Free entry in 2 a wkly comp to win FA Cup final tkts 21st May 2005. Text FA to 87121 to receive entry question(std txt rate)T&C's apply 08452810075over18's"]
+# Defining prediction function
+def predict_spam(predict_msg):
+    new_seq = tokenizer.texts_to_sequences(predict_msg)
+    padded = pad_sequences(new_seq, maxlen =max_len,
+                      padding = padding_type,
+                      truncating=trunc_type)
+    return (model.predict(padded))
+predict_spam(predict_msg)
+If the probability value near to 1, its spam else:ham
